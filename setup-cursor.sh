@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# setup-cursor.sh - Creates symlinks to all files in this project in ~/.cursor/commands directory
+# setup-cursor.sh - Creates a symlink to the commands folder in ~/.cursor/commands/shared directory
 
 set -e  # Exit on any error
 
@@ -12,10 +12,11 @@ COMMANDS_DIR="$SCRIPT_DIR/commands"
 
 # Target directory for Cursor commands
 CURSOR_COMMANDS_DIR="$HOME/.cursor/commands"
+SHARED_SYMLINK="$CURSOR_COMMANDS_DIR/shared"
 
-echo "Setting up Cursor commands symlinks..."
+echo "Setting up Cursor commands symlink..."
 echo "Source directory: $COMMANDS_DIR"
-echo "Target directory: $CURSOR_COMMANDS_DIR"
+echo "Target symlink: $SHARED_SYMLINK"
 
 # Check if the commands directory exists
 if [ ! -d "$COMMANDS_DIR" ]; then
@@ -30,52 +31,37 @@ if [ ! -d "$CURSOR_COMMANDS_DIR" ]; then
     mkdir -p "$CURSOR_COMMANDS_DIR"
 fi
 
-# Counter for created symlinks
-created_count=0
-skipped_count=0
-
-# Loop through all files in the commands directory
-for file in "$COMMANDS_DIR"/*; do
-    # Skip if it's a directory
-    if [ -d "$file" ]; then
-        continue
-    fi
-    
-    # Get the filename without the path
-    filename="$(basename "$file")"
-    
-    # Skip README files and shell scripts
-    if [[ "$filename" =~ ^README.*$ ]] || [[ "$filename" =~ .*\.sh$ ]]; then
-        continue
-    fi
-    
-    # Target symlink path
-    target_path="$CURSOR_COMMANDS_DIR/$filename"
-    
-    # Check if target already exists
-    if [ -e "$target_path" ] || [ -L "$target_path" ]; then
-        if [ -L "$target_path" ] && [ "$(readlink "$target_path")" = "$file" ]; then
-            echo "✓ Symlink already exists and is correct: $filename"
-            ((skipped_count++))
-        else
-            echo "⚠ Target already exists (skipping): $filename"
-            ((skipped_count++))
-        fi
+# Check if the shared symlink already exists
+if [ -e "$SHARED_SYMLINK" ] || [ -L "$SHARED_SYMLINK" ]; then
+    if [ -L "$SHARED_SYMLINK" ] && [ "$(readlink "$SHARED_SYMLINK")" = "$COMMANDS_DIR" ]; then
+        echo "✓ Symlink already exists and is correct: shared"
+        symlink_status="already_exists"
     else
-        # Create the symlink
-        ln -s "$file" "$target_path"
-        echo "✓ Created symlink: $filename"
-        ((created_count++))
+        echo "⚠ Target already exists and is not the expected symlink: shared"
+        echo "  Existing target: $(readlink "$SHARED_SYMLINK" 2>/dev/null || echo "not a symlink")"
+        echo "  Expected target: $COMMANDS_DIR"
+        echo "  Please remove the existing file/directory and run this script again."
+        exit 1
     fi
-done
+else
+    # Create the symlink to the commands directory
+    ln -s "$COMMANDS_DIR" "$SHARED_SYMLINK"
+    echo "✓ Created symlink: shared -> $COMMANDS_DIR"
+    symlink_status="created"
+fi
 
 echo ""
 echo "Setup complete!"
-echo "Created: $created_count symlinks"
-echo "Skipped: $skipped_count files"
 
-if [ $created_count -gt 0 ]; then
+if [ "$symlink_status" = "created" ]; then
+    echo "✓ Created symlink: $SHARED_SYMLINK -> $COMMANDS_DIR"
     echo ""
-    echo "Symlinks created in: $CURSOR_COMMANDS_DIR"
+    echo "The shared commands are now available in Cursor at:"
+    echo "  ~/.cursor/commands/shared/"
     echo "You can now use these commands in Cursor!"
+elif [ "$symlink_status" = "already_exists" ]; then
+    echo "✓ Symlink already exists and is correctly configured."
+    echo ""
+    echo "The shared commands are available in Cursor at:"
+    echo "  ~/.cursor/commands/shared/"
 fi
